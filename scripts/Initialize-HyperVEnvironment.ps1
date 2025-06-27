@@ -6,7 +6,7 @@ param(
     [switch]$ConfigureNetworking
 )
 
-Write-Host ("=" * 60) -ForegroundColor Cyan
+Write-Host ("=" * 60) 
 
 Write-Host "Setting up Vagrant + Packer environment..." -ForegroundColor Green
 
@@ -40,9 +40,9 @@ if (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
     }
 }
 
-Write-Host ("=" * 60) -ForegroundColor Cyan
+Write-Host ("=" * 60) 
 Write-Host "Checking Hyper-V Administrator permissions..." -ForegroundColor Yellow
-Write-Host ("=" * 60) -ForegroundColor Cyan
+Write-Host ("=" * 60) 
 
 # Check if user is in Hyper-V Administrators group
 $CurrentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
@@ -85,7 +85,7 @@ else {
     Write-Host "User is already in Hyper-V Administrators group." -ForegroundColor Green
 }
 
-Write-Host ("=" * 60) -ForegroundColor Cyan
+Write-Host ("=" * 60) 
 
 # Install Chocolatey if not present
 if (!(Get-Command choco -ErrorAction SilentlyContinue)) {
@@ -95,20 +95,20 @@ if (!(Get-Command choco -ErrorAction SilentlyContinue)) {
     Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
 }
 
-Write-Host ("=" * 60) -ForegroundColor Cyan
+Write-Host ("=" * 60) 
 
 # Install required software
 Write-Host "Installing Packer and Vagrant..." -ForegroundColor Yellow
 choco install packer vagrant -y
 
-Write-Host ("=" * 60) -ForegroundColor Cyan
+Write-Host ("=" * 60) 
 
 # Install Vagrant plugins for Windows
 Write-Host "Installing Vagrant plugins..." -ForegroundColor Yellow
 vagrant plugin install vagrant-reload
 vagrant plugin install vagrant-winrm
 
-Write-Host ("=" * 60) -ForegroundColor Cyan
+Write-Host ("=" * 60) 
 
 
 # Enable Hyper-V features
@@ -133,7 +133,7 @@ foreach ($Feature in $HyperVFeatures) {
     }
 }
 
-Write-Host ("=" * 60) -ForegroundColor Cyan
+Write-Host ("=" * 60) 
 
 
 # Configure Hyper-V networking if requested
@@ -177,9 +177,9 @@ if ($ConfigureNetworking) {
         Write-Host "Virtual Switch VLAN Trunk already exists" -ForegroundColor Yellow
         # Check what type of switch it is
         $ExistingSwitch = Get-VMSwitch -Name "Virtual Switch VLAN Trunk"
-        Write-Host "Existing switch type: $($ExistingSwitch.SwitchType)" -ForegroundColor Cyan
+        Write-Host "Existing switch type: $($ExistingSwitch.SwitchType)" 
         if ($ExistingSwitch.NetAdapterInterfaceDescription) {
-            Write-Host "Attached to: $($ExistingSwitch.NetAdapterInterfaceDescription)" -ForegroundColor Cyan
+            Write-Host "Attached to: $($ExistingSwitch.NetAdapterInterfaceDescription)" 
         }
     }
     
@@ -188,7 +188,7 @@ if ($ConfigureNetworking) {
     if ($VirtualSwitch) {
         if ($VirtualSwitch.SwitchType -eq "External") {
             Write-Host "External switch detected - VMs will use DHCP from your network" -ForegroundColor Green
-            Write-Host "VLAN 31 will be configured on individual VMs" -ForegroundColor Cyan
+            Write-Host "VLAN 31 will be configured on individual VMs" 
         }
         elseif ($VirtualSwitch.SwitchType -eq "Internal") {
             Write-Host "Internal switch detected - configuring host IP and NAT..." -ForegroundColor Yellow
@@ -225,7 +225,7 @@ if ($ConfigureNetworking) {
     }
 }
 
-Write-Host ("=" * 60) -ForegroundColor Cyan
+Write-Host ("=" * 60) 
 
 
 # Create project directories
@@ -233,7 +233,7 @@ $ProjectRoot = Split-Path -Parent $PSScriptRoot
 Write-Host "Project structure created at: $ProjectRoot" -ForegroundColor Green
 
 Write-Host "`nSetup complete!" -ForegroundColor Green
-Write-Host "`nNext steps:" -ForegroundColor Cyan
+Write-Host "`nNext steps:" 
 Write-Host "1. Restart your computer if Hyper-V was just enabled" -ForegroundColor White
 Write-Host "2. Test with: cd vagrant\simple && vagrant up" -ForegroundColor White
 Write-Host "3. Build custom Windows Server image: cd packer && packer build windows-server-2025.pkr.hcl" -ForegroundColor White

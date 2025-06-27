@@ -107,9 +107,9 @@ Vagrant.configure("2") do |config|
   
   # Install File Server roles and features
   config.vm.provision "powershell", inline: <<-SHELL, env: {"DRIVE_LETTER" => drive_letter, "DRIVE_NAME" => drive_name}
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "=== File Server Role Installation Starting ===" -ForegroundColor Green
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     
     $DriveLetter = $env:DRIVE_LETTER
     $DriveName = $env:DRIVE_NAME
@@ -133,9 +133,9 @@ Vagrant.configure("2") do |config|
     }
     
     # Create file share directories on storage drive
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Creating file share directories..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     $ShareDirs = @(
         "$DriveLetter`:\\Shares",
         "$DriveLetter`:\\Users",
@@ -150,9 +150,9 @@ Vagrant.configure("2") do |config|
     }
     
     # Install File and Storage Services roles
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Installing File and Storage Services..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Install-WindowsFeature -Name File-Services -IncludeAllSubFeature -IncludeManagementTools
     
     # Install File Server role
@@ -176,19 +176,19 @@ Vagrant.configure("2") do |config|
     Enable-DedupVolume -Volume "$DriveLetter`:" -UsageType Default
     
     # Configure Windows Firewall for file sharing and ping
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Configuring Windows Firewall..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Enable-NetFirewallRule -DisplayGroup "File and Printer Sharing"
     Enable-NetFirewallRule -DisplayGroup "Network Discovery"
     Enable-NetFirewallRule -DisplayName "File and Printer Sharing (Echo Request - ICMPv4-In)"
     Enable-NetFirewallRule -DisplayName "File and Printer Sharing (Echo Request - ICMPv6-In)"
     
     # Display installed features
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "=== File Server Role Installation Complete ===" -ForegroundColor Green
-    Write-Host ("=" * 60) -ForegroundColor Cyan
-    Write-Host "Installed File Server Features:" -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
+    Write-Host "Installed File Server Features:" 
     
     $FileServerFeatures = @(
         "File-Services",
@@ -205,7 +205,7 @@ Vagrant.configure("2") do |config|
     }
     
     Write-Host "`nFile Server is ready for configuration!" -ForegroundColor Green
-    Write-Host "`nStorage Configuration:" -ForegroundColor Cyan
+    Write-Host "`nStorage Configuration:" 
     Write-Host "  - $DriveLetter`:\\Public (public file share)" -ForegroundColor White
     Write-Host "  - $DriveLetter`:\\Users (user home directories)" -ForegroundColor White
     Write-Host "  - $DriveLetter`:\\User Profiles (user roaming profiles)" -ForegroundColor White

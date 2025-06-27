@@ -97,8 +97,8 @@ end
     vagrant box add $BoxName $BoxFile --force
     
     Write-Host "`nBox '$BoxName' has been successfully created and added to Vagrant!" -ForegroundColor Green
-    Write-Host "You can now use it in Vagrantfiles with: config.vm.box = '$BoxName'" -ForegroundColor Cyan
-    Write-Host "VHDX file in box: ${VirtualMachineName}_os.vhdx" -ForegroundColor Cyan
+    Write-Host "You can now use it in Vagrantfiles with: config.vm.box = '$BoxName'" 
+    Write-Host "VHDX file in box: ${VirtualMachineName}_os.vhdx" 
     
 }
 finally {

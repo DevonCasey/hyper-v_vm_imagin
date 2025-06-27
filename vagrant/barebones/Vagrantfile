@@ -110,9 +110,9 @@ Vagrant.configure("2") do |config|
   
   # Minimal provisioning - only essential tasks
   config.vm.provision "powershell", inline: <<-SHELL, env: {"DRIVE_LETTER" => drive_letter, "DRIVE_NAME" => drive_name}
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "=== Barebones Windows Server 2025 Configuration Starting ===" -ForegroundColor Green
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     
     $DriveLetter = $env:DRIVE_LETTER
     $DriveName = $env:DRIVE_NAME
@@ -136,15 +136,15 @@ Vagrant.configure("2") do |config|
     }
     
     # Set timezone to Eastern Standard Time
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Setting timezone to Eastern Standard Time..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Set-TimeZone -Id "Eastern Standard Time"
     
     # Join SERVERS workgroup
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Joining SERVERS workgroup..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     $WorkgroupName = "SERVERS"
     
     # Get current computer information
@@ -162,16 +162,16 @@ Vagrant.configure("2") do |config|
         Write-Host "Already member of workgroup: $WorkgroupName" -ForegroundColor Green
     }
     
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Barebones configuration complete!" -ForegroundColor Green
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
   SHELL
   
   # Install Windows Updates
   config.vm.provision "powershell", inline: <<-SHELL
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Installing Windows Updates..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     
     try {
         # Install PSWindowsUpdate module if not present
@@ -215,9 +215,9 @@ Vagrant.configure("2") do |config|
   
   # Final status report
   config.vm.provision "powershell", inline: <<-SHELL, env: {"DRIVE_LETTER" => drive_letter, "DRIVE_NAME" => drive_name}
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "BAREBONES WINDOWS SERVER 2025 READY" -ForegroundColor Green
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     
     $DriveLetter = $env:DRIVE_LETTER
     $DriveName = $env:DRIVE_NAME
@@ -234,7 +234,7 @@ Vagrant.configure("2") do |config|
     Write-Host "Last Boot: $($ComputerInfo.LastBootUpTime)" -ForegroundColor White
     
     # Storage information
-    Write-Host "`nStorage Configuration:" -ForegroundColor Cyan
+    Write-Host "`nStorage Configuration:" 
     Write-Host "  - C:\\ (OS drive)" -ForegroundColor White
     Write-Host "  - $DriveLetter`:\\ ($DriveName drive)" -ForegroundColor White
     

@@ -89,16 +89,16 @@ function New-WeeklyScheduledTask {
     Register-ScheduledTask -TaskName $TaskName -Description $TaskDescription -Action $Action -Trigger $Trigger -Settings $Settings -Principal $Principal
     
     Write-Host "Scheduled task '$TaskName' created successfully!" -ForegroundColor Green
-    Write-Host "Will run every Sunday at 2:00 AM" -ForegroundColor Cyan
+    Write-Host "Will run every Sunday at 2:00 AM" 
     Write-Host "You can modify it using Task Scheduler or:" -ForegroundColor Yellow
     Write-Host "  Get-ScheduledTask -TaskName '$TaskName' | Set-ScheduledTask" -ForegroundColor White
 }
 
 Write-Host "=== Weekly Golden Image Build Process ===" -ForegroundColor Green
 Write-Host "Building fresh Windows Server 2025 golden image..." -ForegroundColor Yellow
-Write-Host "Box Name: $BoxName" -ForegroundColor Cyan
-Write-Host "ISO Path: $IsoPath" -ForegroundColor Cyan
-Write-Host "Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor Cyan
+Write-Host "Box Name: $BoxName" 
+Write-Host "ISO Path: $IsoPath" 
+Write-Host "Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" 
 
 # Handle scheduling request
 if ($ScheduleWeekly) {
@@ -148,7 +148,7 @@ try {
     
     # Build with custom ISO path if specified
     if ($IsoPath -ne "F:\Install\Microsoft\Windows Server\WinServer_2025.iso") {
-        Write-Host "Using custom ISO path: $IsoPath" -ForegroundColor Cyan
+        Write-Host "Using custom ISO path: $IsoPath" 
         packer build -var "iso_path=$IsoPath" windows-server-2025.pkr.hcl
     }
     else {
@@ -158,7 +158,7 @@ try {
     if ($LASTEXITCODE -eq 0) {
         $PackerDuration = (Get-Date) - $PackerStartTime
         Write-Host "Packer build completed successfully!" -ForegroundColor Green
-        Write-Host "Build time: $($PackerDuration.ToString('hh\:mm\:ss'))" -ForegroundColor Cyan
+        Write-Host "Build time: $($PackerDuration.ToString('hh\:mm\:ss'))" 
     }
     else {
         throw "Packer build failed with exit code $LASTEXITCODE"
@@ -192,9 +192,9 @@ try {
     # Final summary
     $TotalDuration = (Get-Date) - $PackerStartTime
     Write-Host "`n=== Golden Image Build Complete ===" -ForegroundColor Green
-    Write-Host "Total time: $($TotalDuration.ToString('hh\:mm\:ss'))" -ForegroundColor Cyan
-    Write-Host "Box name: $BoxName" -ForegroundColor Cyan
-    Write-Host "Built on: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor Cyan
+    Write-Host "Total time: $($TotalDuration.ToString('hh\:mm\:ss'))" 
+    Write-Host "Box name: $BoxName" 
+    Write-Host "Built on: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" 
     Write-Host "`nYou can now deploy VMs using:" -ForegroundColor Yellow
     Write-Host "  cd vagrant\barebones && vagrant up --provider=hyperv" -ForegroundColor White
     Write-Host "  cd vagrant\fileserver && vagrant up --provider=hyperv" -ForegroundColor White
@@ -202,7 +202,7 @@ try {
     Write-Host "  cd vagrant\domain-controller && vagrant up --provider=hyperv" -ForegroundColor White
     Write-Host "  cd vagrant\iis-server && vagrant up --provider=hyperv" -ForegroundColor White
     
-    Write-Host "`nNext weekly build will be needed after: $(((Get-Date).AddDays($DaysBeforeRebuild)).ToString('yyyy-MM-dd'))" -ForegroundColor Cyan
+    Write-Host "`nNext weekly build will be needed after: $(((Get-Date).AddDays($DaysBeforeRebuild)).ToString('yyyy-MM-dd'))" 
     
     # Check if any VMs are currently running that use this box
     Write-Host "`nChecking for running VMs that use this box..." -ForegroundColor Yellow

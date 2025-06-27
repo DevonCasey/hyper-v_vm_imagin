@@ -107,9 +107,9 @@ Vagrant.configure("2") do |config|
   
   # Install IIS and configure web server
   config.vm.provision "powershell", inline: <<-SHELL, env: {"DRIVE_LETTER" => drive_letter, "DRIVE_NAME" => drive_name}
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "=== IIS Web Server Configuration Starting ===" -ForegroundColor Green
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     
     $DriveLetter = $env:DRIVE_LETTER
     $DriveName = $env:DRIVE_NAME
@@ -133,9 +133,9 @@ Vagrant.configure("2") do |config|
     }
     
     # Install IIS with common features
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Installing IIS Web Server role..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Enable-WindowsOptionalFeature -Online -FeatureName IIS-WebServerRole -All
     Enable-WindowsOptionalFeature -Online -FeatureName IIS-WebServer -All
     Enable-WindowsOptionalFeature -Online -FeatureName IIS-CommonHttpFeatures -All
@@ -166,9 +166,9 @@ Vagrant.configure("2") do |config|
     Import-Module WebAdministration
     
     # Create web directories
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Creating web directories..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     $WebPaths = @(
         "C:\\inetpub\\wwwroot\\app1",
         "C:\\inetpub\\wwwroot\\app2",
@@ -188,9 +188,9 @@ Vagrant.configure("2") do |config|
     }
     
     # Create sample web content
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Creating sample web content..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     
     # Default site content
     $DefaultContent = @"
@@ -277,32 +277,32 @@ Vagrant.configure("2") do |config|
     $ApiContent | Out-File -FilePath "C:\\inetpub\\wwwroot\\api\\index.html" -Encoding UTF8
     
     # Configure Windows Firewall for HTTP/HTTPS and ping
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Configuring Windows Firewall for web traffic and ping..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     New-NetFirewallRule -DisplayName "HTTP Inbound" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow
     New-NetFirewallRule -DisplayName "HTTPS Inbound" -Direction Inbound -Protocol TCP -LocalPort 443 -Action Allow
     Enable-NetFirewallRule -DisplayName "File and Printer Sharing (Echo Request - ICMPv4-In)"
     Enable-NetFirewallRule -DisplayName "File and Printer Sharing (Echo Request - ICMPv6-In)"
     
     # Start IIS services
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Starting IIS services..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Start-Service W3SVC
     Set-Service W3SVC -StartupType Automatic
     
     # Display IIS information
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "=== IIS Web Server Configuration Complete ===" -ForegroundColor Green
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "IIS is running and configured!" -ForegroundColor Green
     Write-Host "Default website: http://$env:COMPUTERNAME/" -ForegroundColor Yellow
-    Write-Host "`nApplications available:" -ForegroundColor Cyan
+    Write-Host "`nApplications available:" 
     Write-Host "  - http://$env:COMPUTERNAME/app1/" -ForegroundColor White
     Write-Host "  - http://$env:COMPUTERNAME/app2/" -ForegroundColor White
     Write-Host "  - http://$env:COMPUTERNAME/api/" -ForegroundColor White
-    Write-Host "`nWebsite Storage Configuration:" -ForegroundColor Cyan
+    Write-Host "`nWebsite Storage Configuration:" 
     Write-Host "  - $DriveLetter`:\\Websites\\Sites (additional websites)" -ForegroundColor White
     Write-Host "  - $DriveLetter`:\\Websites\\Applications (web applications)" -ForegroundColor White
     Write-Host "  - $DriveLetter`:\\Websites\\Logs (IIS logs)" -ForegroundColor White

@@ -107,9 +107,9 @@ Vagrant.configure("2") do |config|
   
   # Install Active Directory Domain Services and promote to Domain Controller
   config.vm.provision "powershell", inline: <<-SHELL, env: {"DRIVE_LETTER" => drive_letter, "DRIVE_NAME" => drive_name}
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "=== Active Directory Domain Services Installation Starting ===" -ForegroundColor Green
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     
     $DriveLetter = $env:DRIVE_LETTER
     $DriveName = $env:DRIVE_NAME
@@ -150,9 +150,9 @@ Vagrant.configure("2") do |config|
     }
     
     # Install Active Directory Domain Services role (but do not promote)
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Installing Active Directory Domain Services role..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools
     
     # Install DNS Server role
@@ -184,11 +184,11 @@ Vagrant.configure("2") do |config|
     Enable-NetFirewallRule -DisplayName "File and Printer Sharing (Echo Request - ICMPv6-In)"
     
     # Display installation information
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "=== Active Directory Domain Services Installation Complete ===" -ForegroundColor Green
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     
-    Write-Host "Installed Features:" -ForegroundColor Cyan
+    Write-Host "Installed Features:" 
     $ADFeatures = @(
         "AD-Domain-Services",
         "DNS"
@@ -200,13 +200,13 @@ Vagrant.configure("2") do |config|
         Write-Host "  $Status $($FeatureInfo.DisplayName)" -ForegroundColor $(if ($FeatureInfo.InstallState -eq "Installed") { "Green" } else { "Red" })
     }
     
-    Write-Host "`nActive Directory Storage Configuration:" -ForegroundColor Cyan
+    Write-Host "`nActive Directory Storage Configuration:" 
     Write-Host "  - $DriveLetter`:\\Database (ready for AD database files)" -ForegroundColor White
     Write-Host "  - $DriveLetter`:\\Logs (ready for AD transaction logs)" -ForegroundColor White
     Write-Host "  - $DriveLetter`:\\SYSVOL (ready for SYSVOL share)" -ForegroundColor White
     Write-Host "  - $DriveLetter`:\\Backups (ready for AD backups)" -ForegroundColor White
     
-    Write-Host "`nServer Configuration:" -ForegroundColor Cyan
+    Write-Host "`nServer Configuration:" 
     Write-Host "  - Server Name: $env:COMPUTERNAME" -ForegroundColor White
     Write-Host "  - Workgroup: SERVERS" -ForegroundColor White
     Write-Host "  - AD DS Role: Installed (not promoted)" -ForegroundColor White

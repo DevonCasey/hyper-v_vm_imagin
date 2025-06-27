@@ -107,9 +107,9 @@ Vagrant.configure("2") do |config|
   
   # Install development tools and configure development environment
   config.vm.provision "powershell", inline: <<-SHELL, env: {"DRIVE_LETTER" => drive_letter, "DRIVE_NAME" => drive_name}
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "=== Development Box Configuration Starting ===" -ForegroundColor Green
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     
     $DriveLetter = $env:DRIVE_LETTER
     $DriveName = $env:DRIVE_NAME
@@ -133,9 +133,9 @@ Vagrant.configure("2") do |config|
     }
     
     # Install Chocolatey package manager
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Installing Chocolatey package manager..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Set-ExecutionPolicy Bypass -Scope Process -Force
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
     try {
@@ -150,9 +150,9 @@ Vagrant.configure("2") do |config|
     $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
     
     # Install Python
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Installing Python..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     choco install python -y
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Python installed successfully!" -ForegroundColor Green
@@ -161,9 +161,9 @@ Vagrant.configure("2") do |config|
     }
     
     # Install Visual Studio Code
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Installing Visual Studio Code..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     choco install vscode -y
     if ($LASTEXITCODE -eq 0) {
         Write-Host "VS Code installed successfully!" -ForegroundColor Green
@@ -190,9 +190,9 @@ Vagrant.configure("2") do |config|
     }
     
     # Install additional development tools
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Installing additional development tools..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     $DevTools = @(
         "notepadplusplus", 
         "googlechrome",
@@ -205,9 +205,9 @@ Vagrant.configure("2") do |config|
     }
     
     # Install PowerShell modules
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Installing PowerShell modules..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     $PSModules = @(
         "posh-git",
         "PSReadLine",
@@ -227,9 +227,9 @@ Vagrant.configure("2") do |config|
     $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
     
     # Configure Python environment with Conda
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Configuring Python environment with Conda..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     try {
         # Refresh environment to get conda in PATH
         $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
@@ -278,9 +278,9 @@ Vagrant.configure("2") do |config|
     }
     
     # Create development directories
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Creating development directories..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     $DevDirs = @(
         "C:\\Dev",
         "C:\\Dev\\Projects",
@@ -300,9 +300,9 @@ Vagrant.configure("2") do |config|
     }
     
     # Create sample development files
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Creating sample development files..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     
     # Python hello world
     $PythonSample = @'
@@ -349,7 +349,7 @@ if __name__ == "__main__":
     $PowerShellSample = @'
 # Sample PowerShell development script
 Write-Host "Hello from PowerShell on Windows Server 2025!" -ForegroundColor Green
-Write-Host "Development Box is ready for coding!" -ForegroundColor Cyan
+Write-Host "Development Box is ready for coding!" 
 
 # Display installed development tools
 Write-Host "`nInstalled Development Tools:" -ForegroundColor Yellow
@@ -382,9 +382,9 @@ foreach ($Tool in $Tools) {
     $VSCodeSettings | Out-File -FilePath "$VSCodeDir\\settings.json" -Encoding UTF8
     
     # Create desktop shortcuts
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Creating desktop shortcuts..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     $WshShell = New-Object -comObject WScript.Shell
     
     # VS Code shortcut
@@ -407,19 +407,19 @@ foreach ($Tool in $Tools) {
     }
     
     # Configure Windows Firewall for ping only
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "Configuring Windows Firewall for ping..." -ForegroundColor Yellow
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     # Enable ping
     Enable-NetFirewallRule -DisplayName "File and Printer Sharing (Echo Request - ICMPv4-In)"
     Enable-NetFirewallRule -DisplayName "File and Printer Sharing (Echo Request - ICMPv6-In)"
     
     # Display configuration summary
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     Write-Host "=== Development Box Configuration Complete ===" -ForegroundColor Green
-    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host ("=" * 60) 
     
-    Write-Host "Installed Development Tools:" -ForegroundColor Cyan
+    Write-Host "Installed Development Tools:" 
     $Tools = @(
         @{Name="Python"; Command="python --version"},
         @{Name="Git"; Command="git --version"},
@@ -443,7 +443,7 @@ foreach ($Tool in $Tools) {
         }
     }
     
-    Write-Host "`nDevelopment Directories:" -ForegroundColor Cyan
+    Write-Host "`nDevelopment Directories:" 
     Write-Host "  - C:\\Dev\\Projects (main project folder)" -ForegroundColor White
     Write-Host "  - C:\\Dev\\Scripts (utility scripts)" -ForegroundColor White
     Write-Host "  - C:\\Dev\\Tools (additional tools)" -ForegroundColor White
@@ -451,11 +451,11 @@ foreach ($Tool in $Tools) {
     Write-Host "  - $DriveLetter`:\\Data ($DriveName drive data storage)" -ForegroundColor White
     Write-Host "  - $DriveLetter`:\\Backup ($DriveName drive backup storage)" -ForegroundColor White
     
-    Write-Host "`nSample Files Created:" -ForegroundColor Cyan
+    Write-Host "`nSample Files Created:" 
     Write-Host "  - C:\\Dev\\Projects\\hello.py (Python sample)" -ForegroundColor White
     Write-Host "  - C:\\Dev\\Scripts\\test-environment.ps1 (PowerShell sample)" -ForegroundColor White
     
-    Write-Host "`nDesktop Shortcuts:" -ForegroundColor Cyan
+    Write-Host "`nDesktop Shortcuts:" 
     Write-Host "  - Visual Studio Code" -ForegroundColor White
     Write-Host "  - Development Folder" -ForegroundColor White
     
