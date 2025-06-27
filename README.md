@@ -5,7 +5,7 @@
 [![Packer](https://img.shields.io/badge/Packer-1.9%2B-blue.svg)](https://www.packer.io/)
 [![Windows Server](https://img.shields.io/badge/Windows%20Server-2025-blue.svg)](https://www.microsoft.com/en-us/windows-server)
 
-A streamlined and modernized workflow for creating Windows Server 2025 golden images using Hyper-V, Vagrant, and Packer.
+A streamlined and pretty cool workflow for creating Windows Server 2025 VMs. It creates a "golden image" that is referenced to create other VMs.
 
 ## 🚀 Quick Start
 
@@ -29,28 +29,36 @@ A streamlined and modernized workflow for creating Windows Server 2025 golden im
    vagrant up
    ```
 
-## 📁 Repository Structure
+## ✍ Script Options
 
-```text
-hyper-v_vm_imaging/
-├── packer/                    # Packer templates and scripts
-│   ├── windows-server-2025.pkr.hcl
-│   ├── autounattend.xml
-│   └── scripts/               # Packer provisioning scripts
-├── vagrant/                   # Vagrant configurations
-│   ├── barebones/             # Minimal Windows Server
-│   ├── dev-box/               # Development environment
-│   ├── fileserver/            # File server with deduplication
-│   ├── domain-controller/     # AD DS ready server
-│   └── iis-server/            # IIS web server
-├── scripts/                   # PowerShell automation scripts
-│   ├── Initialize-HyperVEnvironment.ps1
-│   ├── Build-WeeklyGoldenImage.ps1
-│   └── New-VagrantBox.ps1
-└── README.md                  # This file
+### Build-WeeklyGoldenImage.ps1 Parameters
+
+| Parameter            | Description                                                   | Example                                 |
+| -------------------- | ------------------------------------------------------------- | --------------------------------------- |
+| `-BoxName`           | Name of the Vagrant box (default: windows-server-2025-golden) | `-BoxName "windows-server-2025-golden"` |
+| `-IsoPath`           | Path to Windows Server 2025 ISO                               | `-IsoPath "D:\ISOs\WinServer_2025.iso"` |
+| `-Force`             | Force rebuild even if image is recent                         | `-Force`                                |
+| `-ScheduleWeekly`    | Create scheduled task for weekly builds                       | `-ScheduleWeekly`                       |
+| `-CheckOnly`         | Just check if rebuild is needed                               | `-CheckOnly`                            |
+| `-DaysBeforeRebuild` | Days before rebuild needed (default: 7)                       | `-DaysBeforeRebuild 14`                 |
+
+### Usage Examples
+
+```powershell
+# Check if rebuild is needed
+.\scripts\Build-WeeklyGoldenImage.ps1 -CheckOnly
+
+# Force rebuild regardless of age
+.\scripts\Build-WeeklyGoldenImage.ps1 -Force
+
+# Build with custom settings
+.\scripts\Build-WeeklyGoldenImage.ps1 -BoxName "windows-server-2025-golden" -DaysBeforeRebuild 14
+
+# Remove and recreate scheduled task
+.\scripts\Build-WeeklyGoldenImage.ps1 -ScheduleWeekly
 ```
 
-## ⚙️ Golden Image Workflow
+## ⚙️ Workflow
 
 This guide explains how to use the weekly golden image build process for Windows Server 2025.
 
@@ -73,6 +81,7 @@ Follow these steps to set up the golden image workflow from scratch:
 3. **HashiCorp Vagrant** installed (`choco install vagrant` or download from HashiCorp)
 4. **Windows Server ISO** downloaded and accessible
 5. **Administrative Privileges** user running script needs to be a Hyper-V Administrator
+6. **Windows SDK 10** installed
 
 ### Step 1: Clone and Setup
 
@@ -187,70 +196,6 @@ Get-VMSwitch | Where-Object { $_.Name -like "*VLAN*" }
 
 # Test VM deployment (optional)
 .\scripts\Build-WeeklyGoldenImage.ps1 -CheckOnly
-```
-
-## Quick Start
-
-### 1. Build Golden Image (First Time)
-
-```powershell
-# Build the initial golden image
-.\scripts\Build-WeeklyGoldenImage.ps1
-
-# Or with custom ISO path
-.\scripts\Build-WeeklyGoldenImage.ps1 -IsoPath "D:\ISOs\WinServer_2025.iso"
-```
-
-### 2. Set Up Weekly Automation
-
-```powershell
-# Create a scheduled task to run every Sunday at 2 AM
-.\scripts\Build-WeeklyGoldenImage.ps1 -ScheduleWeekly
-```
-
-### 3. Deploy VMs Using Golden Image
-
-All Vagrantfiles reference `windows-server-2025-golden`, which is assumed to be present:
-
-```powershell
-# Deploy any environment
-cd vagrant\fileserver
-vagrant up --provider=hyperv
-
-cd vagrant\barebones
-vagrant up --provider=hyperv
-
-cd vagrant\dev-box
-vagrant up --provider=hyperv
-```
-
-## Script Options
-
-### Build-WeeklyGoldenImage.ps1 Parameters
-
-| Parameter            | Description                                                   | Example                                 |
-| -------------------- | ------------------------------------------------------------- | --------------------------------------- |
-| `-BoxName`           | Name of the Vagrant box (default: windows-server-2025-golden) | `-BoxName "windows-server-2025-golden"` |
-| `-IsoPath`           | Path to Windows Server 2025 ISO                               | `-IsoPath "D:\ISOs\WinServer_2025.iso"` |
-| `-Force`             | Force rebuild even if image is recent                         | `-Force`                                |
-| `-ScheduleWeekly`    | Create scheduled task for weekly builds                       | `-ScheduleWeekly`                       |
-| `-CheckOnly`         | Just check if rebuild is needed                               | `-CheckOnly`                            |
-| `-DaysBeforeRebuild` | Days before rebuild needed (default: 7)                       | `-DaysBeforeRebuild 14`                 |
-
-### Usage Examples
-
-```powershell
-# Check if rebuild is needed
-.\scripts\Build-WeeklyGoldenImage.ps1 -CheckOnly
-
-# Force rebuild regardless of age
-.\scripts\Build-WeeklyGoldenImage.ps1 -Force
-
-# Build with custom settings
-.\scripts\Build-WeeklyGoldenImage.ps1 -BoxName "windows-server-2025-golden" -DaysBeforeRebuild 14
-
-# Remove and recreate scheduled task
-.\scripts\Build-WeeklyGoldenImage.ps1 -ScheduleWeekly
 ```
 
 ## How It Works
