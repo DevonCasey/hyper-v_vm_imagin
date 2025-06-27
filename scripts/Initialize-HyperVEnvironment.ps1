@@ -6,6 +6,9 @@ param(
     [switch]$ConfigureNetworking
 )
 
+# TODO
+# Add installation/check for windows-sdk-10-version-2004
+
 Write-Host ("=" * 60) 
 
 Write-Host "Setting up Vagrant + Packer environment..." -ForegroundColor Green

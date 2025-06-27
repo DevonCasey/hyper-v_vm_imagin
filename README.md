@@ -315,77 +315,12 @@ foreach ($env in $environments) {
 
 ## Troubleshooting
 
-### Initial Setup Issues
-
-1. **Hyper-V Not Available**
-
-   ```powershell
-   # Enable Hyper-V (requires restart)
-   Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All
-   ```
-
-2. **Packer Not Found**
-
-   ```powershell
-   # Install with Chocolatey
-   choco install packer
-
-   # Or download from https://www.packer.io/downloads
-   ```
-
-3. **Vagrant Not Found**
-
-   ```powershell
-   # Install with Chocolatey
-   choco install vagrant
-
-   # Or download from https://www.vagrantup.com/downloads
-   ```
-
-4. **Virtual Switch Missing**
-
-   ```powershell
-   # Run the initialization script
-   .\scripts\Initialize-HyperVEnvironment.ps1
-   ```
-
-5. **ISO Path Issues**
-
-   ```powershell
-   # Check if ISO exists
-   Test-Path "F:\Install\Microsoft\Windows Server\WinServer_2025.iso"
-
-   # Use custom path
-   .\scripts\Build-WeeklyGoldenImage.ps1 -IsoPath "D:\Path\To\Your\ISO.iso"
-   ```
-
-### Build Issues
-
-1. **Insufficient Disk Space**: Ensure 50+ GB free space
-2. **Memory Issues**: Close unnecessary applications during build
-3. **Network Issues**: Check Hyper-V virtual switch configuration
-4. **Permissions**: Run PowerShell as Administrator
-
-### Runtime Issues
-
-1. **ISO Not Found**: Ensure Windows Server 2025 ISO is available at the specified path
-2. **Packer Build Fails**: Check available disk space and Hyper-V settings
-3. **Box Creation Fails**: Ensure you have sufficient permissions and disk space
-4. **Scheduled Task Fails**: Check Task Scheduler logs and ensure script path is correct
-
 ### Build Logs
 
 Build logs are displayed in the console. For scheduled builds, check:
 
 - Event Viewer > Windows Logs > Application
 - Task Scheduler > Task Scheduler Library > "Build-WeeklyGoldenImage"
-
-### Performance Tips
-
-- Ensure adequate disk space (50+ GB free)
-- Run on SSD for faster builds
-- Close unnecessary applications during build
-- Consider running builds during off-hours
 
 ## Integration with Development Workflow
 
