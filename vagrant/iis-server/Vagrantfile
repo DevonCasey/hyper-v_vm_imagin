@@ -1,0 +1,319 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  # Use the golden image
+  config.vm.box = "windows-server-2025-golden"
+  
+  # Prompt for VM name and drive configuration
+  vm_name = nil
+  drive_name = nil
+  drive_letter = nil
+  drive_size = nil
+  fixed_size = nil
+  
+  if ARGV[0] == "up" && ARGV.length == 2
+    print "Enter VM name: "
+    vm_name = $stdin.gets.chomp
+    vm_name = "ax-iisimage" if vm_name.empty?
+    
+    print "Enter data drive name (e.g., 'Data'): "
+    drive_name_input = $stdin.gets.chomp
+    drive_name = drive_name_input.empty? ? "Data" : drive_name_input
+    drive_letter = drive_name[0].upcase
+    
+    print "Enter size for #{drive_letter}: drive (in GB): "
+    drive_size_input = $stdin.gets.chomp
+    drive_size = drive_size_input.empty? ? 100 : drive_size_input.to_i
+    
+    print "Fixed size drive? (y/n, default n): "
+    fixed_input = $stdin.gets.chomp.downcase
+    fixed_size = fixed_input == 'y' || fixed_input == 'yes'
+  else
+    vm_name = "ax-iisimage"
+    drive_name = "Data"
+    drive_letter = "D"
+    drive_size = 100
+    fixed_size = false
+  end
+  
+  # VM settings
+  config.vm.hostname = vm_name
+  config.vm.guest = :windows
+  config.vm.communicator = "winrm"
+  
+  # WinRM configuration
+  config.winrm.username = "vagrant"
+  config.winrm.password = "vagrant"
+  config.winrm.transport = :plaintext
+  config.winrm.basic_auth_only = true
+  config.winrm.timeout = 300
+  config.winrm.retry_limit = 20
+  
+  # Hyper-V provider settings
+  config.vm.provider "hyperv" do |hv|
+    hv.vmname = vm_name
+    hv.cpus = 4
+    hv.memory = 4096
+    hv.enable_virtualization_extensions = false
+    hv.linked_clone = false  # Full copy instead of linked clone
+    hv.enable_secure_boot = false
+    hv.enable_automatic_checkpoints = false
+    hv.enable_checkpoints = false
+    hv.vm_integration_services = {
+      guest_service_interface: true,
+      heartbeat: true,
+      key_value_pair_exchange: true,
+      shutdown: true,
+      time_synchronization: false,  # Disable time sync
+      vss: true
+    }
+    hv.vhdx_name = "#{vm_name}_os.vhdx"
+    
+    # Create additional websites drive
+    hv.additional_disk_path = "#{vm_name}_#{drive_letter.downcase}.vhdx"
+    hv.maxmemory = nil if fixed_size
+    hv.enable_enhanced_session_mode = true
+  end
+  
+  # Create and attach websites drive
+  config.trigger.before :up do |trigger|
+    trigger.info = "Creating #{drive_letter}: drive (#{drive_name})..."
+    trigger.run = {
+      inline: "powershell -Command \"" +
+        "$DrivePath = '#{vm_name}_#{drive_letter.downcase}.vhdx'; " +
+        "$DriveSize = #{drive_size}GB; " +
+        "$FixedSize = $#{fixed_size}; " +
+        "if (!(Test-Path $DrivePath)) { " +
+          "if ($FixedSize) { " +
+            "New-VHD -Path $DrivePath -SizeBytes $DriveSize -Fixed; " +
+          "} else { " +
+            "New-VHD -Path $DrivePath -SizeBytes $DriveSize -Dynamic; " +
+          "} " +
+          "Write-Host 'Created #{drive_letter}: drive (#{drive_name}): ' $DrivePath; " +
+        "} else { " +
+          "Write-Host '#{drive_letter}: drive already exists: ' $DrivePath; " +
+        "}\""
+    }
+  end
+  
+  # Network configuration
+  config.vm.network "public_network", bridge: "Virtual Switch VLAN Trunk"
+  
+  # Configure VLAN 31 for Hyper-V
+  config.vm.provider "hyperv" do |hv, override|
+    hv.vlan_id = 31
+  end
+  
+  # Install IIS and configure web server
+  config.vm.provision "powershell", inline: <<-SHELL, env: {"DRIVE_LETTER" => drive_letter, "DRIVE_NAME" => drive_name}
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "=== IIS Web Server Configuration Starting ===" -ForegroundColor Green
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    
+    $DriveLetter = $env:DRIVE_LETTER
+    $DriveName = $env:DRIVE_NAME
+    
+    # Initialize and format websites drive
+    Write-Host "Configuring $DriveLetter`: drive ($DriveName)..." -ForegroundColor Yellow
+    try {
+        # Get the disk that is not initialized (should be our new websites drive)
+        $NewDisk = Get-Disk | Where-Object {$_.PartitionStyle -eq 'RAW' -and $_.Size -gt 1GB} | Select-Object -First 1
+        if ($NewDisk) {
+            Write-Host "Found uninitialized disk, setting up as $DriveLetter`: drive..." -ForegroundColor Green
+            $NewDisk | Initialize-Disk -PartitionStyle GPT -PassThru | 
+                New-Partition -DriveLetter $DriveLetter -UseMaximumSize | 
+                Format-Volume -FileSystem NTFS -NewFileSystemLabel $DriveName -Confirm:$false
+            Write-Host "$DriveLetter`: drive ($DriveName) configured successfully!" -ForegroundColor Green
+        } else {
+            Write-Host "No uninitialized disk found, $DriveLetter`: drive may already be configured" -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Warning "Failed to configure $DriveLetter`: drive: $($_.Exception.Message)"
+    }
+    
+    # Install IIS with common features
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "Installing IIS Web Server role..." -ForegroundColor Yellow
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-WebServerRole -All
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-WebServer -All
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-CommonHttpFeatures -All
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-HttpErrors -All
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-HttpRedirect -All
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-ApplicationDevelopment -All
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-NetFxExtensibility45 -All
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-HealthAndDiagnostics -All
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-HttpLogging -All
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-Security -All
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-RequestFiltering -All
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-Performance -All
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-WebServerManagementTools -All
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-ManagementConsole -All
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-IIS6ManagementCompatibility -All
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-Metabase -All
+    
+    # Install ASP.NET features
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-NetFx4ExtensibilityASPNET45 -All
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-ISAPIExtensions -All
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-ISAPIFilter -All
+    Enable-WindowsOptionalFeature -Online -FeatureName IIS-ASPNET45 -All
+    
+    # Wait for IIS to be ready
+    Start-Sleep -Seconds 10
+    
+    # Import WebAdministration module
+    Import-Module WebAdministration
+    
+    # Create web directories
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "Creating web directories..." -ForegroundColor Yellow
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    $WebPaths = @(
+        "C:\\inetpub\\wwwroot\\app1",
+        "C:\\inetpub\\wwwroot\\app2",
+        "C:\\inetpub\\wwwroot\\api",
+        "$DriveLetter`:\\Websites",
+        "$DriveLetter`:\\Websites\\Sites",
+        "$DriveLetter`:\\Websites\\Applications",
+        "$DriveLetter`:\\Websites\\Logs",
+        "$DriveLetter`:\\Websites\\Backups"
+    )
+    
+    foreach ($Path in $WebPaths) {
+        if (!(Test-Path $Path)) {
+            New-Item -ItemType Directory -Path $Path -Force
+            Write-Host "Created directory: $Path" -ForegroundColor Green
+        }
+    }
+    
+    # Create sample web content
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "Creating sample web content..." -ForegroundColor Yellow
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    
+    # Default site content
+    $DefaultContent = @"
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <title>IIS Server 01 - Welcome</title>
+                            <style>
+                                body { font-family: Arial, sans-serif; margin: 40px; background-color: #f4f4f4; }
+                                .container { background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                                h1 { color: #0078d4; }
+                                .info { background-color: #e7f3ff; padding: 15px; border-left: 4px solid #0078d4; margin: 20px 0; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="container">
+                                <h1>Welcome to IIS Server 01</h1>
+                                <p>This is a Windows Server 2025 IIS web server configured with Vagrant.</p>
+                                
+                                <div class="info">
+                                    <h3>Server Information</h3>
+                                    <p><strong>Server:</strong> $env:COMPUTERNAME</p>
+                                    <p><strong>Date:</strong> $(Get-Date)</p>
+                                    <p><strong>IIS Version:</strong> $(Get-ItemProperty "HKLM:\\SOFTWARE\\Microsoft\\InetStp\\" -Name VersionString).VersionString</p>
+                                </div>
+                                
+                                <h3>Available Applications</h3>
+                                <ul>
+                                    <li><a href="/app1/">Application 1</a></li>
+                                    <li><a href="/app2/">Application 2</a></li>
+                                    <li><a href="/api/">API Endpoint</a></li>
+                                </ul>
+                            </div>
+                        </body>
+                        </html>
+                      "@
+    
+    $DefaultContent | Out-File -FilePath "C:\\inetpub\\wwwroot\\index.html" -Encoding UTF8
+    
+    # App1 content
+    $App1Content = @"
+                    <!DOCTYPE html>
+                    <html>
+                    <head><title>Application 1</title></head>
+                    <body style="font-family: Arial; margin: 40px;">
+                        <h1>Application 1</h1>
+                        <p>This is a sample web application running on IIS.</p>
+                        <p>Server: $env:COMPUTERNAME</p>
+                        <p><a href="/">Back to Home</a></p>
+                    </body>
+                    </html>
+                  "@
+
+    $App1Content | Out-File -FilePath "C:\\inetpub\\wwwroot\\app1\\index.html" -Encoding UTF8
+    
+    # App2 content
+    $App2Content = @"
+                    <!DOCTYPE html>
+                    <html>
+                    <head><title>Application 2</title></head>
+                    <body style="font-family: Arial; margin: 40px;">
+                        <h1>Application 2</h1>
+                        <p>Another sample application demonstrating IIS capabilities.</p>
+                        <p>Server: $env:COMPUTERNAME</p>
+                        <p><a href="/">Back to Home</a></p>
+                    </body>
+                    </html>
+                  "@
+    $App2Content | Out-File -FilePath "C:\\inetpub\\wwwroot\\app2\\index.html" -Encoding UTF8
+    
+    # API content
+    $ApiContent = @"
+                    <!DOCTYPE html>
+                    <html>
+                    <head><title>API Endpoint</title></head>
+                    <body style="font-family: Arial; margin: 40px;">
+                        <h1>API Endpoint</h1>
+                        <p>This could be configured as a REST API endpoint.</p>
+                        <p>Server: $env:COMPUTERNAME</p>
+                        <p><a href="/">Back to Home</a></p>
+                    </body>
+                    </html>
+                  "@
+    $ApiContent | Out-File -FilePath "C:\\inetpub\\wwwroot\\api\\index.html" -Encoding UTF8
+    
+    # Configure Windows Firewall for HTTP/HTTPS and ping
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "Configuring Windows Firewall for web traffic and ping..." -ForegroundColor Yellow
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    New-NetFirewallRule -DisplayName "HTTP Inbound" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow
+    New-NetFirewallRule -DisplayName "HTTPS Inbound" -Direction Inbound -Protocol TCP -LocalPort 443 -Action Allow
+    Enable-NetFirewallRule -DisplayName "File and Printer Sharing (Echo Request - ICMPv4-In)"
+    Enable-NetFirewallRule -DisplayName "File and Printer Sharing (Echo Request - ICMPv6-In)"
+    
+    # Start IIS services
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "Starting IIS services..." -ForegroundColor Yellow
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Start-Service W3SVC
+    Set-Service W3SVC -StartupType Automatic
+    
+    # Display IIS information
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "=== IIS Web Server Configuration Complete ===" -ForegroundColor Green
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "IIS is running and configured!" -ForegroundColor Green
+    Write-Host "Default website: http://$env:COMPUTERNAME/" -ForegroundColor Yellow
+    Write-Host "`nApplications available:" -ForegroundColor Cyan
+    Write-Host "  - http://$env:COMPUTERNAME/app1/" -ForegroundColor White
+    Write-Host "  - http://$env:COMPUTERNAME/app2/" -ForegroundColor White
+    Write-Host "  - http://$env:COMPUTERNAME/api/" -ForegroundColor White
+    Write-Host "`nWebsite Storage Configuration:" -ForegroundColor Cyan
+    Write-Host "  - $DriveLetter`:\\Websites\\Sites (additional websites)" -ForegroundColor White
+    Write-Host "  - $DriveLetter`:\\Websites\\Applications (web applications)" -ForegroundColor White
+    Write-Host "  - $DriveLetter`:\\Websites\\Logs (IIS logs)" -ForegroundColor White
+    Write-Host "  - $DriveLetter`:\\Websites\\Backups (website backups)" -ForegroundColor White
+    
+    # Test the web server
+    try {
+        $Response = Invoke-WebRequest -Uri "http://localhost" -UseBasicParsing
+        Write-Host "Web server test: SUCCESS (Status: $($Response.StatusCode))" -ForegroundColor Green
+    } catch {
+        Write-Host "Web server test: FAILED - $($_.Exception.Message)" -ForegroundColor Red
+    }
+  SHELL
+end

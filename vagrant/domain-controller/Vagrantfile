@@ -1,0 +1,220 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  # Use the golden image
+  config.vm.box = "windows-server-2025-golden"
+  
+  # Prompt for VM name and drive configuration
+  vm_name = nil
+  drive_name = nil
+  drive_letter = nil
+  drive_size = nil
+  fixed_size = nil
+  
+  if ARGV[0] == "up" && ARGV.length == 2
+    print "Enter VM name: "
+    vm_name = $stdin.gets.chomp
+    vm_name = "ax-dcimage" if vm_name.empty?
+    
+    print "Enter data drive name (e.g., 'Data'): "
+    drive_name_input = $stdin.gets.chomp
+    drive_name = drive_name_input.empty? ? "Data" : drive_name_input
+    drive_letter = drive_name[0].upcase
+    
+    print "Enter size for #{drive_letter}: drive (in GB): "
+    drive_size_input = $stdin.gets.chomp
+    drive_size = drive_size_input.empty? ? 50 : drive_size_input.to_i
+    
+    print "Fixed size drive? (y/n): "
+    fixed_input = $stdin.gets.chomp.downcase
+    fixed_size = fixed_input.empty? || fixed_input == 'y' || fixed_input == 'yes'
+  else
+    vm_name = "ax-dcimage"
+    drive_name = "#{vm_name}_d"
+    drive_letter = "D"
+    drive_size = 50
+    fixed_size = true
+  end
+  
+  # VM settings
+  config.vm.hostname = vm_name
+  config.vm.guest = :windows
+  config.vm.communicator = "winrm"
+  
+  # WinRM configuration
+  config.winrm.username = "vagrant"
+  config.winrm.password = "vagrant"
+  config.winrm.transport = :plaintext
+  config.winrm.basic_auth_only = true
+  config.winrm.timeout = 300
+  config.winrm.retry_limit = 20
+  
+  # Hyper-V provider settings
+  config.vm.provider "hyperv" do |hv|
+    hv.vmname = "#{vm_name}-DomainController"
+    hv.cpus = 4
+    hv.memory = 4096
+    hv.enable_virtualization_extensions = false
+    hv.linked_clone = false  # Full copy instead of linked clone
+    hv.enable_secure_boot = false
+    hv.enable_automatic_checkpoints = false
+    hv.enable_checkpoints = false
+    hv.vm_integration_services = {
+      guest_service_interface: true,
+      heartbeat: true,
+      key_value_pair_exchange: true,
+      shutdown: true,
+      time_synchronization: false,  # Disable time sync
+      vss: true
+    }
+    hv.vhdx_name = "#{vm_name}_os.vhdx"
+    
+    # Create additional Active Directory drive
+    hv.additional_disk_path = "#{vm_name}_#{drive_letter.downcase}.vhdx"
+    hv.maxmemory = nil if fixed_size
+    hv.enable_enhanced_session_mode = true
+  end
+  
+  # Create and attach Active Directory drive
+  config.trigger.before :up do |trigger|
+    trigger.info = "Creating #{drive_letter}: drive (#{drive_name})..."
+    trigger.run = {
+      inline: "powershell -Command \"" +
+        "$DrivePath = '#{vm_name}_#{drive_letter.downcase}.vhdx'; " +
+        "$DriveSize = #{drive_size}GB; " +
+        "$FixedSize = $#{fixed_size}; " +
+        "if (!(Test-Path $DrivePath)) { " +
+          "if ($FixedSize) { " +
+            "New-VHD -Path $DrivePath -SizeBytes $DriveSize -Fixed; " +
+          "} else { " +
+            "New-VHD -Path $DrivePath -SizeBytes $DriveSize -Dynamic; " +
+          "} " +
+          "Write-Host 'Created #{drive_letter}: drive (#{drive_name}): ' $DrivePath; " +
+        "} else { " +
+          "Write-Host '#{drive_letter}: drive already exists: ' $DrivePath; " +
+        "}\""
+    }
+  end
+  
+  # Network configuration
+  config.vm.network "public_network", bridge: "Virtual Switch VLAN Trunk"
+  
+  # Configure VLAN 31 for Hyper-V
+  config.vm.provider "hyperv" do |hv, override|
+    hv.vlan_id = 31
+  end
+  
+  # Install Active Directory Domain Services and promote to Domain Controller
+  config.vm.provision "powershell", inline: <<-SHELL, env: {"DRIVE_LETTER" => drive_letter, "DRIVE_NAME" => drive_name}
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "=== Active Directory Domain Services Installation Starting ===" -ForegroundColor Green
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    
+    $DriveLetter = $env:DRIVE_LETTER
+    $DriveName = $env:DRIVE_NAME
+    
+    # Initialize and format Active Directory drive
+    Write-Host "Configuring $DriveLetter`: drive ($DriveName)..." -ForegroundColor Yellow
+    try {
+        # Get the disk that is not initialized (should be our new AD drive)
+        $NewDisk = Get-Disk | Where-Object {$_.PartitionStyle -eq 'RAW' -and $_.Size -gt 1GB} | Select-Object -First 1
+        if ($NewDisk) {
+            Write-Host "Found uninitialized disk, setting up as $DriveLetter`: drive..." -ForegroundColor Green
+            $NewDisk | Initialize-Disk -PartitionStyle GPT -PassThru | 
+                New-Partition -DriveLetter $DriveLetter -UseMaximumSize | 
+                Format-Volume -FileSystem NTFS -NewFileSystemLabel $DriveName -Confirm:$false
+            Write-Host "$DriveLetter`: drive ($DriveName) configured successfully!" -ForegroundColor Green
+        } else {
+            Write-Host "No uninitialized disk found, $DriveLetter`: drive may already be configured" -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Warning "Failed to configure $DriveLetter`: drive: $($_.Exception.Message)"
+    }
+    
+    # Create Active Directory directories on the data drive (for future use)
+    Write-Host "Creating Active Directory directories..." -ForegroundColor Yellow
+    $ADDirs = @(
+        "$DriveLetter`:\\AD",
+        "$DriveLetter`:\\AD\\Database",
+        "$DriveLetter`:\\AD\\Logs",
+        "$DriveLetter`:\\AD\\SYSVOL",
+        "$DriveLetter`:\\AD\\Backups"
+    )
+    
+    foreach ($Dir in $ADDirs) {
+        if (!(Test-Path $Dir)) {
+            New-Item -ItemType Directory -Path $Dir -Force
+            Write-Host "Created directory: $Dir" -ForegroundColor Green
+        }
+    }
+    
+    # Install Active Directory Domain Services role (but do not promote)
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "Installing Active Directory Domain Services role..." -ForegroundColor Yellow
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Install-WindowsFeature -Name AD-Domain-Services -IncludeManagementTools
+    
+    # Install DNS Server role
+    Write-Host "Installing DNS Server role..." -ForegroundColor Yellow
+    Install-WindowsFeature -Name DNS -IncludeManagementTools
+    
+    # Join SERVERS workgroup (same as other servers)
+    Write-Host "Joining SERVERS workgroup..." -ForegroundColor Yellow
+    $WorkgroupName = "SERVERS"
+    
+    # Get current computer information
+    $ComputerSystem = Get-WmiObject -Class Win32_ComputerSystem
+    
+    if ($ComputerSystem.Workgroup -ne $WorkgroupName) {
+        try {
+            # Join the SERVERS workgroup
+            Add-Computer -WorkgroupName $WorkgroupName -Force
+            Write-Host "Successfully joined workgroup: $WorkgroupName" -ForegroundColor Green
+        } catch {
+            Write-Warning "Failed to join workgroup: $($_.Exception.Message)"
+        }
+    } else {
+        Write-Host "Already member of workgroup: $WorkgroupName" -ForegroundColor Green
+    }
+    
+    # Configure Windows Firewall for ping
+    Write-Host "Configuring Windows Firewall for ping..." -ForegroundColor Yellow
+    Enable-NetFirewallRule -DisplayName "File and Printer Sharing (Echo Request - ICMPv4-In)"
+    Enable-NetFirewallRule -DisplayName "File and Printer Sharing (Echo Request - ICMPv6-In)"
+    
+    # Display installation information
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "=== Active Directory Domain Services Installation Complete ===" -ForegroundColor Green
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    
+    Write-Host "Installed Features:" -ForegroundColor Cyan
+    $ADFeatures = @(
+        "AD-Domain-Services",
+        "DNS"
+    )
+    
+    foreach ($Feature in $ADFeatures) {
+        $FeatureInfo = Get-WindowsFeature -Name $Feature
+        $Status = if ($FeatureInfo.InstallState -eq "Installed") { "✓" } else { "✗" }
+        Write-Host "  $Status $($FeatureInfo.DisplayName)" -ForegroundColor $(if ($FeatureInfo.InstallState -eq "Installed") { "Green" } else { "Red" })
+    }
+    
+    Write-Host "`nActive Directory Storage Configuration:" -ForegroundColor Cyan
+    Write-Host "  - $DriveLetter`:\\Database (ready for AD database files)" -ForegroundColor White
+    Write-Host "  - $DriveLetter`:\\Logs (ready for AD transaction logs)" -ForegroundColor White
+    Write-Host "  - $DriveLetter`:\\SYSVOL (ready for SYSVOL share)" -ForegroundColor White
+    Write-Host "  - $DriveLetter`:\\Backups (ready for AD backups)" -ForegroundColor White
+    
+    Write-Host "`nServer Configuration:" -ForegroundColor Cyan
+    Write-Host "  - Server Name: $env:COMPUTERNAME" -ForegroundColor White
+    Write-Host "  - Workgroup: SERVERS" -ForegroundColor White
+    Write-Host "  - AD DS Role: Installed (not promoted)" -ForegroundColor White
+    Write-Host "  - DNS Role: Installed" -ForegroundColor White
+    
+    Write-Host "`nTo promote this server to a Domain Controller, use:" -ForegroundColor Yellow
+    Write-Host "  Install-ADDSForest -DomainName 'your.domain' -DatabasePath '$DriveLetter`:\\Database' -LogPath '$DriveLetter`:\\Logs' -SysvolPath '$DriveLetter`:\\SYSVOL'" -ForegroundColor Gray
+    
+    Write-Host "`nActive Directory server is ready for manual configuration!" -ForegroundColor Green
+  SHELL
+end

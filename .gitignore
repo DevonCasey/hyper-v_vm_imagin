@@ -1,0 +1,34 @@
+# IDE and Editor files
+.vscode/
+*.swp
+*.swo
+*~
+
+# Vagrant files
+.vagrant/
+*.log
+
+# Packer outputs
+output-*/
+packer_cache/
+
+# Virtual machine files
+*.vhd
+*.vhdx
+*.vmcx
+*.vmrs
+
+# Windows-specific files
+Thumbs.db
+*.tmp
+*.bak
+
+# PowerShell transcripts
+PowerShell_transcript.*.txt
+
+# Hyper-V specific
+output-hyperv-iso/
+
+# Build artifacts
+*.box
+boxes/

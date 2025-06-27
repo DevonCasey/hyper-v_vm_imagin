@@ -1,0 +1,465 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  # Use the golden image
+  config.vm.box = "windows-server-2025-golden"
+  
+  # Prompt for VM info
+  vm_name = nil
+  drive_name = nil
+  drive_letter = nil
+  drive_size = nil
+  fixed_size = nil
+  
+  if ARGV[0] == "up" && ARGV.length == 2
+    print "Enter VM name: "
+    vm_name = $stdin.gets.chomp
+    vm_name = "ax-devimage" if vm_name.empty?
+    
+    print "Enter data drive name: "
+    drive_name_input = $stdin.gets.chomp
+    drive_name = drive_name_input.empty? ? "Data" : drive_name_input
+    drive_letter = drive_name[0].upcase
+    
+    print "Enter size for #{drive_letter}: drive (GB): "
+    drive_size_input = $stdin.gets.chomp
+    drive_size = drive_size_input.empty? ? 50 : drive_size_input.to_i
+    
+    print "Fixed size drive? (y/n, default n): "
+    fixed_input = $stdin.gets.chomp.downcase
+    fixed_size = fixed_input == 'y' || fixed_input == 'yes'
+  else
+    vm_name = "ax-devimage"
+    drive_name = "Data"
+    drive_letter = "D"
+    drive_size = 50
+    fixed_size = false
+  end
+  
+  # VM settings
+  config.vm.hostname = vm_name
+  config.vm.guest = :windows
+  config.vm.communicator = "winrm"
+  
+  # WinRM configuration
+  config.winrm.username = "vagrant"
+  config.winrm.password = "vagrant"
+  config.winrm.transport = :plaintext
+  config.winrm.basic_auth_only = true
+  config.winrm.timeout = 300
+  config.winrm.retry_limit = 20
+  
+  # Hyper-V provider settings
+  config.vm.provider "hyperv" do |hv|
+    hv.vmname = vm_name
+    hv.cpus = 4
+    hv.memory = 8192  # More memory for development
+    hv.enable_virtualization_extensions = false
+    hv.linked_clone = false  # Full copy instead of linked clone
+    hv.enable_secure_boot = false
+    hv.enable_automatic_checkpoints = false
+    hv.enable_checkpoints = false
+    hv.vm_integration_services = {
+      guest_service_interface: true,
+      heartbeat: true,
+      key_value_pair_exchange: true,
+      shutdown: true,
+      time_synchronization: false,  # Disable time sync
+      vss: true
+    }
+    hv.vhdx_name = "#{vm_name}_os.vhdx"
+    
+    # Create additional data drive
+    hv.additional_disk_path = "#{vm_name}_#{drive_letter.downcase}.vhdx"
+    hv.maxmemory = nil if fixed_size
+    hv.enable_enhanced_session_mode = true
+  end
+  
+  # Create and attach data drive
+  config.trigger.before :up do |trigger|
+    trigger.info = "Creating #{drive_letter}: drive (#{drive_name})..."
+    trigger.run = {
+      inline: "powershell -Command \"" +
+        "$DrivePath = '#{vm_name}_#{drive_letter.downcase}.vhdx'; " +
+        "$DriveSize = #{drive_size}GB; " +
+        "$FixedSize = $#{fixed_size}; " +
+        "if (!(Test-Path $DrivePath)) { " +
+          "if ($FixedSize) { " +
+            "New-VHD -Path $DrivePath -SizeBytes $DriveSize -Fixed; " +
+          "} else { " +
+            "New-VHD -Path $DrivePath -SizeBytes $DriveSize -Dynamic; " +
+          "} " +
+          "Write-Host 'Created #{drive_letter}: drive (#{drive_name}): ' $DrivePath; " +
+        "} else { " +
+          "Write-Host '#{drive_letter}: drive already exists: ' $DrivePath; " +
+        "}\""
+    }
+  end
+  
+  # Network configuration
+  config.vm.network "public_network", bridge: "Virtual Switch VLAN Trunk"
+  
+  # Configure VLAN 31 for Hyper-V
+  config.vm.provider "hyperv" do |hv, override|
+    hv.vlan_id = 31
+  end
+  
+  # Install development tools and configure development environment
+  config.vm.provision "powershell", inline: <<-SHELL, env: {"DRIVE_LETTER" => drive_letter, "DRIVE_NAME" => drive_name}
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "=== Development Box Configuration Starting ===" -ForegroundColor Green
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    
+    $DriveLetter = $env:DRIVE_LETTER
+    $DriveName = $env:DRIVE_NAME
+    
+    # Initialize and format data drive
+    Write-Host "Configuring $DriveLetter`: drive ($DriveName)..." -ForegroundColor Yellow
+    try {
+        # Get the disk that is not initialized (should be our new data drive)
+        $NewDisk = Get-Disk | Where-Object {$_.PartitionStyle -eq 'RAW' -and $_.Size -gt 1GB} | Select-Object -First 1
+        if ($NewDisk) {
+            Write-Host "Found uninitialized disk, setting up as $DriveLetter`: drive..." -ForegroundColor Green
+            $NewDisk | Initialize-Disk -PartitionStyle GPT -PassThru | 
+                New-Partition -DriveLetter $DriveLetter -UseMaximumSize | 
+                Format-Volume -FileSystem NTFS -NewFileSystemLabel $DriveName -Confirm:$false
+            Write-Host "$DriveLetter`: drive ($DriveName) configured successfully!" -ForegroundColor Green
+        } else {
+            Write-Host "No uninitialized disk found, $DriveLetter`: drive may already be configured" -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Warning "Failed to configure $DriveLetter`: drive: $($_.Exception.Message)"
+    }
+    
+    # Install Chocolatey package manager
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "Installing Chocolatey package manager..." -ForegroundColor Yellow
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Set-ExecutionPolicy Bypass -Scope Process -Force
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+    try {
+        Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+        Write-Host "Chocolatey installed successfully!" -ForegroundColor Green
+    } catch {
+        Write-Error "Failed to install Chocolatey: $($_.Exception.Message)"
+        exit 1
+    }
+    
+    # Refresh environment variables
+    $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+    
+    # Install Python
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "Installing Python..." -ForegroundColor Yellow
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    choco install python -y
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Python installed successfully!" -ForegroundColor Green
+    } else {
+        Write-Warning "Python installation failed, continuing..."
+    }
+    
+    # Install Visual Studio Code
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "Installing Visual Studio Code..." -ForegroundColor Yellow
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    choco install vscode -y
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "VS Code installed successfully!" -ForegroundColor Green
+    } else {
+        Write-Warning "VS Code installation failed, continuing..."
+    }
+
+    # Install Anaconda3
+    Write-Host "Installing Anaconda3..." -ForegroundColor Yellow
+    choco install anaconda3 -y
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Anaconda3 installed successfully!" -ForegroundColor Green
+    } else {
+        Write-Warning "Anaconda3 installation failed, continuing..."
+    }
+    
+    # Install Git
+    Write-Host "Installing Git..." -ForegroundColor Yellow
+    choco install git -y
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Git installed successfully!" -ForegroundColor Green
+    } else {
+        Write-Warning "Git installation failed, continuing..."
+    }
+    
+    # Install additional development tools
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "Installing additional development tools..." -ForegroundColor Yellow
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    $DevTools = @(
+        "notepadplusplus", 
+        "googlechrome",
+        "firefox"
+    )
+    
+    foreach ($Tool in $DevTools) {
+        Write-Host "Installing $Tool..." -ForegroundColor Gray
+        choco install $Tool -y --no-progress
+    }
+    
+    # Install PowerShell modules
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "Installing PowerShell modules..." -ForegroundColor Yellow
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    $PSModules = @(
+        "posh-git",
+        "PSReadLine",
+        "PowerShellGet"
+    )
+    
+    foreach ($Module in $PSModules) {
+        Write-Host "Installing PowerShell module: $Module" -ForegroundColor Gray
+        try {
+            Install-Module -Name $Module -Force -Scope AllUsers -AllowClobber
+        } catch {
+            Write-Warning "Failed to install module $Module"
+        }
+    }
+    
+    # Refresh environment again after installations
+    $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+    
+    # Configure Python environment with Conda
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "Configuring Python environment with Conda..." -ForegroundColor Yellow
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    try {
+        # Refresh environment to get conda in PATH
+        $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+        
+        # Initialize conda for PowerShell (if available)
+        $CondaPath = Get-Command conda -ErrorAction SilentlyContinue
+        if ($CondaPath) {
+            Write-Host "Conda found, installing packages..." -ForegroundColor Green
+            
+            # Install common data science packages via conda (preferred method)
+            $CondaPackages = @(
+                "numpy",
+                "pandas", 
+                "matplotlib",
+                "jupyter",
+                "scikit-learn"
+            )
+            
+            foreach ($Package in $CondaPackages) {
+                Write-Host "Installing conda package: $Package" -ForegroundColor Gray
+                conda install $Package -y --quiet
+            }
+            
+            Write-Host "Python packages installed successfully via Conda!" -ForegroundColor Green
+        } else {
+            Write-Host "Conda not found in PATH, falling back to pip..." -ForegroundColor Yellow
+            
+            # Fallback to pip if conda is not available
+            $PythonPackages = @(
+                "numpy",
+                "pandas",
+                "matplotlib",
+                "jupyter",
+                "scikit-learn"
+            )
+            
+            foreach ($Package in $PythonPackages) {
+                Write-Host "Installing Python package: $Package" -ForegroundColor Gray
+                python -m pip install $Package --quiet
+            }
+            
+            Write-Host "Python packages installed via pip!" -ForegroundColor Green
+        }
+    } catch {
+        Write-Warning "Some Python packages may not have installed correctly: $($_.Exception.Message)"
+    }
+    
+    # Create development directories
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "Creating development directories..." -ForegroundColor Yellow
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    $DevDirs = @(
+        "C:\\Dev",
+        "C:\\Dev\\Projects",
+        "C:\\Dev\\Scripts",
+        "C:\\Dev\\Tools",
+        "C:\\Users\\vagrant\\Desktop\\Development",
+        "$DriveLetter`:\\Projects",
+        "$DriveLetter`:\\Data",
+        "$DriveLetter`:\\Backup"
+    )
+    
+    foreach ($Dir in $DevDirs) {
+        if (!(Test-Path $Dir)) {
+            New-Item -ItemType Directory -Path $Dir -Force
+            Write-Host "Created directory: $Dir" -ForegroundColor Green
+        }
+    }
+    
+    # Create sample development files
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "Creating sample development files..." -ForegroundColor Yellow
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    
+    # Python hello world
+    $PythonSample = @'
+#!/usr/bin/env python3
+"""
+Sample Python script for development testing
+"""
+
+def main():
+    print("Hello from Python on Windows Server 2025!")
+    print("Development environment is ready!")
+    
+    # Test imports
+    try:
+        import numpy
+        print("✓ numpy module available")
+    except ImportError:
+        print("✗ numpy module not available")
+    
+    try:
+        import pandas
+        print("✓ pandas module available")
+    except ImportError:
+        print("✗ pandas module not available")
+        
+    try:
+        import requests
+        print("✓ requests module available")
+    except ImportError:
+        print("✗ requests module not available")
+    
+    try:
+        import flask
+        print("✓ flask module available")
+    except ImportError:
+        print("✗ flask module not available")
+
+if __name__ == "__main__":
+    main()
+'@
+    $PythonSample | Out-File -FilePath "C:\\Dev\\Projects\\hello.py" -Encoding UTF8
+    
+    # PowerShell development script
+    $PowerShellSample = @'
+# Sample PowerShell development script
+Write-Host "Hello from PowerShell on Windows Server 2025!" -ForegroundColor Green
+Write-Host "Development Box is ready for coding!" -ForegroundColor Cyan
+
+# Display installed development tools
+Write-Host "`nInstalled Development Tools:" -ForegroundColor Yellow
+$Tools = @("python", "git", "node", "npm")
+foreach ($Tool in $Tools) {
+    try {
+        $Version = & $Tool --version 2>$null
+        Write-Host "✓ $Tool`: $Version" -ForegroundColor Green
+    } catch {
+        Write-Host "✗ $tool`: Not found" -ForegroundColor Red
+    }
+}
+'@
+    $PowerShellSample | Out-File -FilePath "C:\\Dev\\Scripts\\test-environment.ps1" -Encoding UTF8
+    
+    # VS Code workspace settings
+    $VSCodeSettings = @{
+        "python.defaultInterpreterPath" = "python"
+        "terminal.integrated.shell.windows" = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+        "git.enableSmartCommit" = $true
+        "editor.fontSize" = 14
+        "editor.tabSize" = 4
+        "files.autoSave" = "afterDelay"
+    } | ConvertTo-Json -Depth 3
+    
+    $VSCodeDir = "C:\\Users\\vagrant\\AppData\\Roaming\\Code\\User"
+    if (!(Test-Path $VSCodeDir)) {
+        New-Item -ItemType Directory -Path $VSCodeDir -Force
+    }
+    $VSCodeSettings | Out-File -FilePath "$VSCodeDir\\settings.json" -Encoding UTF8
+    
+    # Create desktop shortcuts
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "Creating desktop shortcuts..." -ForegroundColor Yellow
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    $WshShell = New-Object -comObject WScript.Shell
+    
+    # VS Code shortcut
+    try {
+        $VSCodeShortcut = $WshShell.CreateShortcut("C:\\Users\\vagrant\\Desktop\\Visual Studio Code.lnk")
+        $VSCodeShortcut.TargetPath = "C:\\Users\\vagrant\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"
+        $VSCodeShortcut.WorkingDirectory = "C:\\Dev\\Projects"
+        $VSCodeShortcut.Save()
+    } catch {
+        Write-Warning "Could not create VS Code shortcut"
+    }
+    
+    # Development folder shortcut
+    try {
+        $DevShortcut = $WshShell.CreateShortcut("C:\\Users\\vagrant\\Desktop\\Development.lnk")
+        $DevShortcut.TargetPath = "C:\\Dev"
+        $DevShortcut.Save()
+    } catch {
+        Write-Warning "Could not create Development folder shortcut"
+    }
+    
+    # Configure Windows Firewall for ping only
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "Configuring Windows Firewall for ping..." -ForegroundColor Yellow
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    # Enable ping
+    Enable-NetFirewallRule -DisplayName "File and Printer Sharing (Echo Request - ICMPv4-In)"
+    Enable-NetFirewallRule -DisplayName "File and Printer Sharing (Echo Request - ICMPv6-In)"
+    
+    # Display configuration summary
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    Write-Host "=== Development Box Configuration Complete ===" -ForegroundColor Green
+    Write-Host ("=" * 60) -ForegroundColor Cyan
+    
+    Write-Host "Installed Development Tools:" -ForegroundColor Cyan
+    $Tools = @(
+        @{Name="Python"; Command="python --version"},
+        @{Name="Git"; Command="git --version"},
+        @{Name="Node.js"; Command="node --version"},
+        @{Name="NPM"; Command="npm --version"},
+        @{Name="VS Code"; Path="C:\\Users\\vagrant\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe"}
+    )
+    
+    foreach ($Tool in $Tools) {
+        try {
+            if ($Tool.Command) {
+                $Version = Invoke-Expression $Tool.Command 2>$null
+                Write-Host "✓ $($Tool.Name): $Version" -ForegroundColor Green
+            } elseif ($Tool.Path -and (Test-Path $Tool.Path)) {
+                Write-Host "✓ $($Tool.Name): Installed" -ForegroundColor Green
+            } else {
+                Write-Host "✗ $($Tool.Name): Not found" -ForegroundColor Red
+            }
+        } catch {
+            Write-Host "✗ $($Tool.Name): Not found" -ForegroundColor Red
+        }
+    }
+    
+    Write-Host "`nDevelopment Directories:" -ForegroundColor Cyan
+    Write-Host "  - C:\\Dev\\Projects (main project folder)" -ForegroundColor White
+    Write-Host "  - C:\\Dev\\Scripts (utility scripts)" -ForegroundColor White
+    Write-Host "  - C:\\Dev\\Tools (additional tools)" -ForegroundColor White
+    Write-Host "  - $DriveLetter`:\\Projects ($DriveName drive projects)" -ForegroundColor White
+    Write-Host "  - $DriveLetter`:\\Data ($DriveName drive data storage)" -ForegroundColor White
+    Write-Host "  - $DriveLetter`:\\Backup ($DriveName drive backup storage)" -ForegroundColor White
+    
+    Write-Host "`nSample Files Created:" -ForegroundColor Cyan
+    Write-Host "  - C:\\Dev\\Projects\\hello.py (Python sample)" -ForegroundColor White
+    Write-Host "  - C:\\Dev\\Scripts\\test-environment.ps1 (PowerShell sample)" -ForegroundColor White
+    
+    Write-Host "`nDesktop Shortcuts:" -ForegroundColor Cyan
+    Write-Host "  - Visual Studio Code" -ForegroundColor White
+    Write-Host "  - Development Folder" -ForegroundColor White
+    
+    Write-Host "Development Box is ready for coding!" -ForegroundColor Green
+    Write-Host "RDP to the machine and start developing!" -ForegroundColor Yellow
+  SHELL
+end
